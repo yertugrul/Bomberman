@@ -1,0 +1,858 @@
+using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Text;
+using System.Drawing;
+using System.Windows.Forms;
+using System.Threading;
+
+
+namespace Bomb
+{
+    class Program
+    {
+
+        //GLOBAL VARIABLES
+        
+        public static char[,] render = new char[50, 50];    //Contains Map members
+        static List<Monsters> list = new List<Monsters>();         //Contains monsters
+        public static List<int> Bcoordinate = new List<int>();
+        public static int size; //size of the map
+        public static int power = 0;    //increase effective area of bomb
+        //GLOBAL FUNCTION
+        public static void Render()     //Game Map Updater---Render Array two Dimensional
+        {
+            for (int p = 0; p < size; p++)
+            {
+                for (int s = 0; s < size; s++)
+                {
+                    Console.Write(render[p, s]);
+                }
+                Console.Write("\n");
+
+            }
+        }
+
+
+        //GLOBAL END
+
+
+
+        static void Main(string[] args)
+        {
+
+            Console.BackgroundColor = ConsoleColor.DarkRed;
+            Console.Clear();
+            Console.ForegroundColor = ConsoleColor.White;
+
+            Console.Write("Enter side length of the map: ");
+            size = Convert.ToInt32(Console.ReadLine());
+            
+            Walls wall = new Walls();
+            player yigit = new player("yigit", 3, 0, 0);
+            Monsters joker = new Monsters(2, 6);
+            Monsters batman = new Monsters(6, 7);
+          //  Monsters batman2 = new Monsters(2, 3);
+           
+            Listener listen = new Listener();
+            booster bombdouble = new BombEffect();
+            bombdouble.giveSpecialityToPlayer(yigit);
+
+            while (yigit.life() != 0)
+            {
+                if (yigit.IsCrash() ==  true)
+                {
+                    ConsoleKeyInfo key;
+
+                    if (Console.KeyAvailable == true)
+                    {
+                        key = Console.ReadKey();
+                        listen._Listener(yigit, list, wall, key);
+                    }
+                    
+
+                    if (yigit.life() != 0)
+                    {
+
+                        for (int k = 0; k < list.Count(); k++)
+                        {
+                            list[k].move(wall);     //list holds all created monsters
+                        }
+                    }
+                    Thread.Sleep(600);
+                }
+               
+            }
+            
+        }
+
+
+
+        interface movable
+        {
+            void move(Walls wall, ConsoleKeyInfo key);
+        }
+
+        public abstract class MapObject
+        {
+            public abstract int GetX();
+            public abstract int GetY();
+            public abstract void SetX(int x);
+            public abstract void SetY(int y);
+        }
+
+
+        /// <summary>
+        /// Wall Class
+        /// </summary>
+
+        class Walls
+        {
+            private int _x;
+            private int _y;
+
+            public Walls()
+            {
+                Random r = new Random();
+
+                for (int p = 0; p < size; p++)    //Create Map with 'o'
+                {
+                    for (int s = 0; s < size; s++)
+                    {
+                        render[p, s] = 'o';
+                        Console.Write(render[p, s]);
+                    }
+                    Console.Write("\n");
+                }
+
+                int wall = size * 5;
+
+                for (int k = 0; k < wall; k++)       //Create Walls with 'D'
+                {
+                    this._x = r.Next(1, size);
+                    this._y = r.Next(1, size);
+                    
+                    render[_x, _y] = 'D';
+                    Console.ForegroundColor = ConsoleColor.Green;
+                    Console.Clear();
+                    Console.Write(render[_x, _y]);
+                }
+            }
+
+            public void IsBombKillWall()
+            {
+                bool wall1 = false, wall2 = false, wall3 = false, wall4 = false;
+
+                for (int s = 0; s < power; s++)
+                {
+                    int x = s * 8;
+                    if (Bcoordinate[x] != -1)
+                    {
+                        if (!wall1 &&  render[Bcoordinate[x], Bcoordinate[1 + x]] == 'D' )       //east
+                        {
+                            wall1 = true;
+                            render[Bcoordinate[x], Bcoordinate[x+1]] = 'o';
+                        }
+
+                    }
+
+                    if (Bcoordinate[2 + x] != -1)
+                    {
+                        if (!wall2 && render[Bcoordinate[2 + x], Bcoordinate[3 + x]] == 'D')      //south
+                        {
+                            wall2 = true;
+                            render[Bcoordinate[ 2 + x], Bcoordinate[ 3 + x]] = 'o';
+                        }
+
+                    }
+
+                    if (Bcoordinate[4 + x] != -1)
+                    {
+                        if (!wall3 &&  render[Bcoordinate[4 + x], Bcoordinate[5 + x]] == 'D' )      //west
+                        {
+                            wall3 = true;
+                            render[Bcoordinate[4 + x], Bcoordinate[5 + x]] = 'o';
+                        }                      
+                    }
+
+                    if (Bcoordinate[6 + x] != -1)
+                    {
+                        if (!wall4 &&  render[Bcoordinate[6 + x], Bcoordinate[ 7 + x]] == 'D' )      //north
+                        {
+                            wall4 = true;
+                            render[Bcoordinate[6 + x], Bcoordinate[7 + x]] = 'o';
+                        }
+
+                    }
+                }
+            }
+
+        }
+
+
+        class Listener
+        {
+            public void _Listener(player player, List<Monsters> list, Walls wall, ConsoleKeyInfo key)  //If a key is pressed, check whether it is B or Arrow keys
+            {
+                if (key.Key == ConsoleKey.Enter)
+                {
+                    player.ThreadPutBomb(player, list, wall, key);
+                }
+                else
+                {
+                    player.move(wall, key);
+                }
+            }
+        }
+
+
+        /// <summary>
+        /// Boosters for player
+        /// </summary>
+
+        interface booster 
+        {
+              void giveSpecialityToPlayer(player player);
+        }
+
+        class ExtraLife : booster
+        {
+            public  void giveSpecialityToPlayer(player player)
+            {
+                player.incrementlives();
+            }
+        }
+
+        class BombEffect : booster  //increases effective area of the bomb but limited by power = 2
+        {
+            public  void giveSpecialityToPlayer(player player)
+            {
+                power++;
+            }
+        }
+ 
+
+        /// <summary>
+        /// Player Class
+        /// </summary>
+
+        class player : MapObject, movable
+        {
+            private int lives = 3;
+            private string name;
+            private int xx, yy;
+
+
+            public player(string name, int lives, int x, int y)     //Constructor
+            {
+                this.name = name;
+                this.lives = lives;
+                this.xx = x;
+                this.yy = y;
+                render[this.xx, this.yy] = 'X';
+                Console.Clear();
+
+                for (int p = 0; p < size; p++)
+                {
+                    for (int s = 0; s < size; s++)
+                    {
+                        Console.Write(render[p, s]);
+                    }
+                    Console.Write("\n");
+
+                }
+            }
+
+            public bool IsCrash()      //If any monster and player crashes, then kill player and reborn at the point (0, 0)
+            {
+                for (int k = 0; k < list.Count(); k++)
+                {
+                    if ((this.GetX() == list[k].GetX()) && (this.GetY() == list[k].GetY()))
+                    {
+                     
+                        this.decrementlives();
+                        Console.WriteLine("yigit lives : " + this.life());
+                        render[this.GetX(), this.GetY()] = 'M';
+                        this.SetX(0);
+                        this.SetY(0);
+                        render[0, 0] = 'X';
+                        Console.Clear();
+                        Render();
+
+                        return false;
+                    }
+                }
+                return true;
+            }
+
+            public void IsBombKillPlayer()
+            {
+
+                for (int s = 0; s < power; s++)
+                {
+                    int x = s * 8;
+                    
+                    if (Bcoordinate[0] != -1  && render[Bcoordinate[0], Bcoordinate[1]] != 'D')
+                    {
+                        if (Bcoordinate[0 + x] == xx && Bcoordinate[1 + x] == yy)       //east
+                        {
+                            Console.WriteLine("Player is died!!!");
+                            this.decrementlives();
+                            Console.WriteLine("yigit lives : " + this.life());
+                            render[xx, yy] = 'o';
+                            render[0, 0] = 'X';
+
+                            this.SetX(0);
+                            this.SetY(0);
+                        }
+                    }
+
+                    if (Bcoordinate[2] != -1 && render[Bcoordinate[2], Bcoordinate[3]] != 'D')
+                    {
+                        if (Bcoordinate[2 + x] == xx && Bcoordinate[3 + x] == yy)      //south
+                        {
+                            Console.WriteLine("Player is died!!!");
+                            this.decrementlives();
+                            Console.WriteLine("yigit lives : " + this.life());
+                            render[xx, yy] = 'o';
+                            render[0, 0] = 'X';
+
+                            this.SetX(0);
+                            this.SetY(0);
+
+
+                        }
+                    }
+                    if (Bcoordinate[4] != -1 && render[Bcoordinate[4], Bcoordinate[5]] != 'D')
+                    {
+
+                        if (Bcoordinate[4 + x] == xx && Bcoordinate[5 + x] == yy)      //west
+                        {
+                            Console.WriteLine("Player is died!!!");
+                            this.decrementlives();
+                            Console.WriteLine("yigit lives : " + this.life());
+                            render[xx, yy] = 'o';
+                            render[0, 0] = 'X';
+
+                            this.SetX(0);
+                            this.SetY(0);
+
+
+                        }
+                    }
+
+                    if (Bcoordinate[6] != -1 &&  render[Bcoordinate[6], Bcoordinate[7]] != 'D')
+                    {
+                        if (Bcoordinate[6 + x] == xx && Bcoordinate[7 + x] == yy)      //north
+                        {
+                            Console.WriteLine("Player is died!!!");
+                            this.decrementlives();
+                            Console.WriteLine("yigit lives : " + this.life());
+                            render[xx, yy] = 'o';
+                            render[0, 0] = 'X';
+
+                            this.SetX(0);
+                            this.SetY(0);
+
+                        }
+                    }
+                }
+            }
+
+
+            public void incrementlives()
+            {
+                this.lives++;
+            }
+             
+
+            public void decrementlives()
+            {
+                this.lives--;
+            }
+
+            public int life()
+            {
+                return this.lives;
+            }
+
+            public void ThreadMove(Walls wall, ConsoleKeyInfo key)
+            {
+                Thread thread = new Thread(() => move(wall, key));
+                thread.Start();
+            }
+
+            public void move(Walls wall, ConsoleKeyInfo key)    //move player KeyEventHandlers
+            {
+
+
+
+                if ((xx >= 0 && xx < size) && (yy >= 0 && yy < size))
+                {
+                    bool helper = true;
+                    if (key.Key == ConsoleKey.UpArrow && xx != 0)  //Yukar? 
+                    {
+                        if (render[xx - 1, yy] == 'D' || render[xx - 1, yy] == 'B')
+                            helper = false;
+
+                        if (helper)
+                        {
+                            
+                            if (render[this.xx, this.yy] != 'B')
+                                render[this.xx, this.yy] = 'o';
+                            this.xx--;
+                            render[this.xx, this.yy] = 'X';
+                            Console.Clear();
+                            Render();
+                         
+                        }
+                    }
+                    else if (key.Key == ConsoleKey.DownArrow && xx < size-1)    //Asag?
+                    {
+
+                        if (render[xx + 1, yy] == 'D' || render[xx + 1, yy] == 'B')
+                            helper = false;
+
+                        if (helper)
+                        {
+                            
+                            if (render[this.xx, this.yy] != 'B')
+                                render[xx, yy] = 'o';
+                            xx++;
+                            render[xx, yy] = 'X';
+                            Console.Clear();
+                            Render();
+                  
+                        }
+                    }
+                    else if (key.Key == ConsoleKey.RightArrow && yy < size - 1)  //Saga
+                    {
+
+                        if (render[xx, yy + 1] == 'D' || render[xx, yy +1] == 'B')
+                            helper = false;
+
+                        if (helper)
+                        {
+                            
+                            if (render[this.xx, this.yy] != 'B')
+                                render[xx, yy] = 'o';
+                            yy++;
+                            render[xx, yy] = 'X';
+                            Console.Clear();
+                            Render();
+             
+                        }
+                    }
+                    else if (key.Key == ConsoleKey.LeftArrow && yy != 0)   //Sola
+                    {
+
+
+                        if (render[xx, yy - 1] == 'D' || render[xx, yy-1] == 'B')
+                            helper = false;
+
+                        if (helper)
+                        {
+                           
+                            if (render[this.xx, this.yy] != 'B')
+                                render[xx, yy] = 'o';
+                            yy--;
+                            render[xx, yy] = 'X';
+                            Console.Clear();
+                            Render();
+                          
+                        }
+                    }
+                }
+            }
+
+            public void ThreadPutBomb(player player, List<Monsters> list, Walls wall, ConsoleKeyInfo key)
+            {
+
+                Thread thread = new Thread(() => PutBomb(player, list, wall, key));
+                thread.Start();
+            }
+
+            public void PutBomb(player player, List<Monsters> list, Walls wall, ConsoleKeyInfo key) //put bomb to the position of (x, y)
+            {
+
+                
+                    Bomb bomb = new Bomb(this.xx, this.yy);
+                    bomb.SetX(this.xx);
+                    bomb.SetY(this.yy);
+                    render[xx, yy] = 'B';
+                    Console.Clear();
+                    Render();
+                    bomb.explode(player, list, wall);
+                
+            }
+
+            public void decrementLives()    //Decrement lives by 1
+            {
+                this.lives = this.lives - 1;
+            }
+
+            public override int GetX()
+            {
+                return this.xx;
+            }
+
+            public override int GetY()
+            {
+                return this.yy;
+            }
+
+            public override void SetX(int x)
+            {
+                this.xx = x;
+            }
+
+            public override void SetY(int y)
+            {
+                this.yy = y;
+            }
+
+        }
+
+        /// <summary>
+        /// Monster Class
+        /// </summary>
+
+        class Monsters : MapObject
+        {
+            private int xx, yy;
+
+            public Monsters(int x, int y)
+            {
+                this.xx = x;
+                this.yy = y;
+                render[x, y] = 'M';
+                list.Add(this);
+                Console.Clear();
+                Render();
+            }
+
+            public void IsBombKillMonster()     //if bomb power increased, then check for second influential coordinates
+            {
+               
+                for (int s = 0; s < power; s++)
+                {
+                    
+                    int x = s * 8;
+                   
+                    if (Bcoordinate[0 + x] != -1)
+                    {
+                        if (render[Bcoordinate[0], Bcoordinate[1]] != 'D')
+                        {
+                            if (render[Bcoordinate[0 + x], Bcoordinate[1 + x]] == 'M')       //east
+                            {
+
+                                render[xx, yy] = 'o';
+                                this.SetX(size + 4);
+                                this.SetY(size + 4);
+
+                            }
+                        }
+                    }
+
+                    
+                    if (Bcoordinate[2 + x] != -1)
+                    {
+                        if (render[Bcoordinate[2], Bcoordinate[3]] != 'D')
+                        {
+                            if (render[Bcoordinate[2], Bcoordinate[3]] == 'M')      //south
+                            {
+
+                                render[xx, yy] = 'o';
+                                this.SetX(size + 4);
+                                this.SetY(size + 4);
+
+                            }
+                        }
+                    }
+                    
+
+                   
+                    if (Bcoordinate[4 + x] != -1)
+                    {
+                        if (render[Bcoordinate[4], Bcoordinate[5]] != 'D')
+                        {
+                            if (render[Bcoordinate[4 + x], Bcoordinate[5 + x]] == 'M')      //west
+                            {
+
+                                render[xx, yy] = 'o';
+                                this.SetX(size + 4);
+                                this.SetY(size + 4);
+
+                            }
+                        }
+                    }
+                    
+
+                   
+                    if (Bcoordinate[6 + x] != -1)
+                    {
+                        if (render[Bcoordinate[6], Bcoordinate[7]] != 'D')
+                        {
+                            if (render[Bcoordinate[6 + x], Bcoordinate[7 + x]] == 'M')      //north
+                            {
+
+                                render[xx, yy] = 'o';
+                                this.SetX(size + 4);
+                                this.SetY(size + 4);
+
+                            }
+                        }
+                    }
+                    
+                }
+            }
+
+            public void move(Walls wall)
+            {
+                //move Monsters Randomly
+
+                Random rnd = new Random();
+                int rand = rnd.Next(1, 5);
+
+                bool helper = true;
+
+                if ((xx >= 0 && xx < size) && (yy >= 0 && yy < size))
+                {
+                    if (rand == 1)
+                    {
+                        if (this.yy != size-1)
+                        {
+                            if (render[this.xx, this.yy + 1] == 'D' || render[this.xx, this.yy + 1] == 'B')
+                            {
+                                helper = false;
+                            }
+                            //RightStep
+                            if (helper)
+                            {
+                                
+                                render[this.xx, this.yy] = 'o';
+                                this.yy++;
+                                this.SetY(yy);
+                                render[this.xx, this.yy] = 'M';
+                                Console.Clear();
+                                Render();
+
+                            }
+                        }
+
+                    }
+                    else if (rand == 2)
+                    {
+                        //SouthStep
+
+                        if (xx != size - 1)
+                        {
+
+                            if (render[this.xx + 1, this.yy] == 'D' || render[this.xx + 1, this.yy] == 'B')
+                            {
+                                helper = false;
+                            }
+
+                            if (helper)
+                            {
+                                
+                                render[this.xx, this.yy] = 'o';
+                                this.xx++;
+                                this.SetX(xx);
+                                render[this.xx, this.yy] = 'M';
+                                Console.Clear();
+                                Render();
+
+                            }
+                        }
+
+                    }
+                    else if (rand == 3)
+                    {
+                        //LeftStep
+                        if (yy != 0)
+                        {
+
+                            if (render[this.xx, this.yy - 1] == 'D' || render[this.xx, this.yy - 1] == 'B')
+                            {
+                                helper = false;
+                            }
+
+                            if (helper)
+                            {
+                              
+                                render[this.xx, this.yy] = 'o';
+                                this.yy--;
+                                this.SetY(yy);
+                                render[this.xx, this.yy] = 'M';
+                                Console.Clear();
+                                Render();
+                   
+                            }
+                        }
+
+                    }
+                    else if (rand == 4)
+                    {
+                        //NorthStep
+                        if (this.xx != 0)
+                        {
+                            if (render[this.xx - 1, this.yy] == 'D' || render[this.xx - 1, this.yy] == 'B')
+                            {
+                                helper = false;
+                            }
+
+                            if (helper)
+                            {
+                                
+                                render[this.xx, this.yy] = 'o';
+                                this.xx--;
+                                this.SetX(xx);
+                                render[this.xx, this.yy] = 'M';
+                                Console.Clear();
+                                Render();
+                            }
+                        }
+                    }
+                }
+               
+            }
+
+            public override int GetX()
+            {
+                return this.xx;
+            }
+
+            public override int GetY()
+            {
+                return this.yy;
+            }
+
+            public override void SetX(int x)
+            {
+                this.xx = x;
+            }
+
+            public override void SetY(int y)
+            {
+                this.yy = y;
+            }
+
+        }
+
+
+
+        /// <summary>
+        /// Bomb Class
+        /// </summary>
+        class Bomb : MapObject
+        {
+            private int _x, _y;
+            
+
+            public Bomb(int x, int y)
+            {
+                this._x = x;
+                this._y = y;
+
+            }
+
+
+
+            public List<int>explodeCoordinate(int power)    //gets exploded bomb effective area coordinates
+            {
+                Bcoordinate.Clear();
+                for (int s = 0; s < power; s++)
+                {
+
+                    if ((_y + 1 + s) <= size - 1)        //east
+                    {
+                        Bcoordinate.Add(_x);
+                        Bcoordinate.Add((_y + 1 + s));
+                    }
+                    else
+                    {
+                        Bcoordinate.Add(-1);
+                        Bcoordinate.Add(-1);
+                    }
+
+                    if ((_x + 1 + s) <= size - 1)     //south
+                    {
+                        Bcoordinate.Add(_x + 1 + s);
+                        Bcoordinate.Add(_y);
+                    }
+                    else
+                    {
+                        Bcoordinate.Add(-1);
+                        Bcoordinate.Add(-1);
+                    }
+                    if ((_y - 1 - s) >= 0)      //west
+                    {
+                        Bcoordinate.Add(_x);
+                        Bcoordinate.Add(_y - 1 - s);
+                    }
+                    else
+                    {
+                        Bcoordinate.Add(-1);
+                        Bcoordinate.Add(-1);
+                    }
+
+                    if ((_x - 1 - s) >= 0)      //north
+                    {
+                        Bcoordinate.Add(_x - 1 - s);
+                        Bcoordinate.Add(_y);
+                    }
+                    else
+                    {
+                        Bcoordinate.Add(-1);
+                        Bcoordinate.Add(-1);
+                    }
+                }
+
+                return Bcoordinate;
+            }
+
+            public void explode(player player, List<Monsters> monsters, Walls wall)
+            {
+               
+                System.Threading.Thread.Sleep(3000);
+                
+                this.explodeCoordinate(power);
+
+
+                player.IsBombKillPlayer();
+                for (int k = 0; k < monsters.Count; k++)
+                {
+                    monsters[k].IsBombKillMonster();
+                }
+                wall.IsBombKillWall();
+
+                render[_x, _y] = 'o';
+                Console.Clear();
+                Render();
+
+            }
+
+            public override void SetX(int x)
+            {
+                this._x = x;
+            }
+
+            public override void SetY(int y)
+            {
+                this._y = y;
+            }
+
+            public override int GetX()
+            {
+                return this._x;
+            }
+
+            public override int GetY()
+            {
+                return this._y;
+            }
+        }
+
+    }
+}
